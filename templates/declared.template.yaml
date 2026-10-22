@@ -1,0 +1,50 @@
+# declared.yaml — filled in by the tech lead
+# List only what AWS and Kubernetes cannot show. Everything else is extracted.
+
+schema_version: 1
+deployment: payments-api
+namespace: payments
+cluster: platform-stg
+owner_team: payments-squad
+tech_lead: tech.lead@example.com
+
+dependencies:
+  # type:     data-store | external | on-prem | internal-app
+  # protocol: https | http | grpc | postgres | mysql | redis | kafka | tcp
+  # auth:     password | iam | mtls | api-key | oauth | none
+
+  - name: payments-db
+    type: data-store
+    service: rds-postgres
+    endpoint: payments-db.abc123.ap-east-1.rds.amazonaws.com
+    port: 5432
+    protocol: postgres
+    tls: true
+    auth: password
+    purpose: Stores payment records
+
+  - name: fx-rates
+    type: external
+    endpoint: rates.vendor.com
+    port: 443
+    protocol: https
+    tls: true
+    auth: api-key
+    purpose: FX pricing
+
+  - name: core-banking
+    type: on-prem
+    endpoint: cbs.internal.example.com
+    port: 8443
+    protocol: https
+    tls: true
+    auth: mtls
+    purpose: Posts transactions
+
+  # To add a purpose to an extracted AWS dependency,
+  # use the same name and give only the purpose.
+  - name: card-tokens
+    purpose: Reads card tokenisation key
+
+prod_differences: >
+  Prod runs in account 444455556666. WAF is in block mode in prod.

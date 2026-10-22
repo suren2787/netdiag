@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netdiag"
+version = "0.1.0"
+description = "Network diagram and flow table for an EKS app, for architecture reviews"
+requires-python = ">=3.11"
+dependencies = [
+  "boto3>=1.34",
+  "kubernetes>=29.0",
+  "pyyaml>=6.0",
+  "jsonschema>=4.21",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.4",
+]
+
+[project.scripts]
+netdiag = "netdiag.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"

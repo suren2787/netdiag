@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "declared.schema.json",
+  "title": "netdiag declared.yaml",
+  "description": "Filled in by the tech lead. Lists only what AWS and Kubernetes cannot show.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "deployment", "namespace", "cluster", "owner_team", "tech_lead", "dependencies", "prod_differences"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "deployment": {"type": "string", "minLength": 1},
+    "namespace": {"type": "string", "minLength": 1},
+    "cluster": {"type": "string", "minLength": 1},
+    "owner_team": {"type": "string", "minLength": 1},
+    "tech_lead": {"type": "string", "pattern": "^[^@\\s]+@[^@\\s]+$"},
+    "prod_differences": {"type": "string", "minLength": 1},
+    "dependencies": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/dependency"}
+    }
+  },
+  "$defs": {
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "purpose"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        "purpose": {"type": "string", "minLength": 3},
+        "type": {"enum": ["data-store", "external", "on-prem", "internal-app"]},
+        "service": {"type": "string", "minLength": 1},
+        "endpoint": {
+          "type": "string",
+          "description": "Hostname. Not an IP address.",
+          "pattern": "^(?!\\d{1,3}(\\.\\d{1,3}){3}$)[A-Za-z0-9.-]+$"
+        },
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "protocol": {"enum": ["https", "http", "grpc", "postgres", "mysql", "redis", "kafka", "tcp"]},
+        "tls": {"type": "boolean"},
+        "auth": {"enum": ["password", "iam", "mtls", "api-key", "oauth", "none"]}
+      },
+      "allOf": [
+        {
+          "if": {"required": ["type"]},
+          "then": {"required": ["endpoint", "port", "protocol", "tls", "auth"]},
+          "else": {"maxProperties": 2}
+        },
+        {
+          "if": {"required": ["type"], "properties": {"type": {"const": "data-store"}}},
+          "then": {"required": ["service"]}
+        }
+      ]
+    }
+  }
+}

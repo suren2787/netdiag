@@ -1,0 +1,147 @@
+# network.yaml — merged output for one app (phase 1: outside the cluster)
+#
+# Source tags on each field:
+#   [input]     given on the command line
+#   [extracted] read from AWS or Kubernetes APIs (API call and field shown)
+#   [declared]  copied from the tech lead's declared.yaml
+#   [derived]   computed by the tool from other fields
+
+schema_version: 1
+generated_at: "2026-10-21T15:30:00Z"        # [derived] run time, UTC
+
+app:
+  deployment: payments-api                  # [input]
+  namespace: payments                       # [input]
+  environment: stg                          # [input]
+  owner_team: payments-squad                # [declared]
+  tech_lead: tech.lead@example.com          # [declared]
+
+cluster:
+  name: platform-stg                        # [input]
+  account_id: "111122223333"                # [extracted] eks describe-cluster: cluster.arn
+  region: ap-east-1                         # [extracted] eks describe-cluster: cluster.arn
+  api_endpoint:
+    private: true                           # [extracted] resourcesVpcConfig.endpointPrivateAccess
+    public: false                           # [extracted] resourcesVpcConfig.endpointPublicAccess
+    public_cidrs: []                        # [extracted] resourcesVpcConfig.publicAccessCidrs (only when public: true)
+
+vpc:
+  id: vpc-0abc1234                          # [extracted] resourcesVpcConfig.vpcId
+  cidrs: [10.40.0.0/20, 100.64.0.0/16]      # [extracted] ec2 describe-vpcs: CidrBlockAssociationSet[].CidrBlock
+  subnets:
+    - id: subnet-0a1                        # [extracted] ec2 describe-subnets: SubnetId
+      name: stg-public-a                    # [extracted] Tags[Name]
+      az: ap-east-1a                        # [extracted] AvailabilityZone
+      cidr: 10.40.0.0/24                    # [extracted] CidrBlock
+      default_route: igw-0aa11              # [extracted] ec2 describe-route-tables: target of route 0.0.0.0/0
+                                            #   a subnet with no explicit association uses the main route table
+      tier: public                          # [derived] igw-* = public, nat-* or tgw-* = private, none = isolated
+      cluster_subnet: false                 # [derived] true if listed in resourcesVpcConfig.subnetIds
+    - id: subnet-0a2
+      name: stg-private-a
+      az: ap-east-1a
+      cidr: 10.40.4.0/22
+      default_route: tgw-0bb22
+      tier: private
+      cluster_subnet: true
+  nat_gateways:                             # [extracted] ec2 describe-nat-gateways: NatGatewayId, SubnetId
+    - {id: nat-0cc33, subnet: subnet-0a1}
+  transit_gateway_attachments:              # [extracted] ec2 describe-transit-gateway-vpc-attachments
+    - {id: tgw-attach-0dd44, transit_gateway: tgw-0bb22}
+  vpc_endpoints:                            # [extracted] ec2 describe-vpc-endpoints: ServiceName (short form), VpcEndpointType
+    - {service: s3, type: Gateway}
+    - {service: ecr.api, type: Interface}
+    - {service: ecr.dkr, type: Interface}
+    - {service: secretsmanager, type: Interface}
+
+ingress:
+  - id: I1                                  # [derived] stable ID, used in the diagram and the flow table
+    hostname: api.stg.example.com           # [extracted] Kubernetes Ingress spec.rules[].host
+    kubernetes_object: ingress/payments/payments-api
+                                            # [extracted] Ingress, or Service of type LoadBalancer
+    backend: {service: payments-api, port: 8080}
+                                            # [extracted] Ingress backend, then Service spec.ports
+    load_balancer:
+      name: k8s-payments-api-1a2b3c         # [extracted] elbv2 describe-load-balancers:
+                                            #   match DNSName to Ingress status.loadBalancer.ingress[].hostname
+      type: application                     # [extracted] Type
+      scheme: internet-facing               # [extracted] Scheme
+      subnets: [subnet-0a1, subnet-0b1]     # [extracted] AvailabilityZones[].SubnetId
+      listeners:                            # [extracted] elbv2 describe-listeners: Port, Protocol, SslPolicy, DefaultActions
+        - {port: 443, protocol: HTTPS, tls_policy: ELBSecurityPolicy-TLS13-1-2-2021-06}
+        - {port: 80, protocol: HTTP, default_action: redirect}
+      waf_acl: payments-stg-acl             # [extracted] wafv2 get-web-acl-for-resource: WebACL.Name (null if none)
+    cloudfront:                             # [extracted] cloudfront list-distributions:
+                                            #   origin DomainName = load balancer DNSName (whole block null if none)
+      id: E1ABCDEF
+      waf_acl: null                         # [extracted] WebACLId
+
+workload:
+  service_account: payments-api             # [extracted] Deployment spec.template.spec.serviceAccountName
+  identity: pod-identity                    # [derived] pod-identity | irsa | node-role
+  iam_role: arn:aws:iam::111122223333:role/payments-api-stg
+                                            # [extracted] eks list-pod-identity-associations, then
+                                            #   describe-pod-identity-association: roleArn
+                                            #   or ServiceAccount annotation eks.amazonaws.com/role-arn
+
+dependencies:
+  - id: D1                                  # [derived] stable ID, used in the diagram and the flow table
+    name: card-tokens
+    type: aws-service                       # aws-service | data-store | external | on-prem | internal-app
+    service: secretsmanager
+    resource: arn:aws:secretsmanager:ap-east-1:111122223333:secret:card-tokens-*
+                                            # [extracted] iam list-attached-role-policies, get-policy-version,
+                                            #   list-role-policies, get-role-policy: Statement[].Resource
+    actions: [secretsmanager:GetSecretValue]
+                                            # [extracted] Statement[].Action
+    port: 443                               # [derived] every AWS API: 443, https, tls, iam
+    protocol: https
+    tls: true
+    auth: iam
+    path: vpc-endpoint                      # [derived] vpc-endpoint if one exists for the service,
+                                            #   otherwise the cluster subnets' default route (nat or tgw)
+    purpose: Reads card tokenisation key    # [declared] matched by name
+    source: extracted
+  - id: D2
+    name: payments-db
+    type: data-store
+    service: rds-postgres                   # [declared]
+    endpoint: payments-db.abc123.ap-east-1.rds.amazonaws.com
+                                            # [declared]
+    port: 5432                              # [declared]
+    protocol: postgres                      # [declared]
+    tls: true                               # [declared]
+    auth: password                          # [declared]
+    path: in-vpc                            # [derived] data-store = in-vpc, on-prem = tgw,
+                                            #   external = cluster subnets' default route
+    purpose: Stores payment records         # [declared]
+    source: declared
+  - id: D3
+    name: fx-rates
+    type: external
+    endpoint: rates.vendor.com
+    port: 443
+    protocol: https
+    tls: true
+    auth: api-key
+    path: tgw
+    purpose: FX pricing
+    source: declared
+  - id: D4
+    name: core-banking
+    type: on-prem
+    endpoint: cbs.internal.example.com
+    port: 8443
+    protocol: https
+    tls: true
+    auth: mtls
+    path: tgw
+    purpose: Posts transactions
+    source: declared
+
+prod_differences: >                         # [declared]
+  Prod runs in account 444455556666. WAF is in block mode in prod.
+
+warnings:                                   # [derived] printed in the review pack
+  - "IAM role grants s3:GetObject on Resource '*' - resource not identifiable"
+  - "Listener 80/HTTP on I1 does not redirect to HTTPS"

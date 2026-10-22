@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "netdiag validate (template)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "netdiag.cli",
+      "args": ["validate", "templates/declared.template.yaml"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "netdiag render (template)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "netdiag.cli",
+      "args": ["render", "templates/network.template.yaml", "--out", "out/template"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "netdiag run (staging)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "netdiag.cli",
+      "args": [
+        "run",
+        "--cluster", "${input:cluster}",
+        "--namespace", "${input:namespace}",
+        "--deployment", "${input:deployment}",
+        "--declared", "${input:declared}",
+        "--out", "out/${input:deployment}"
+      ],
+      "console": "integratedTerminal"
+    }
+  ],
+  "inputs": [
+    {"id": "cluster", "type": "promptString", "description": "EKS cluster name"},
+    {"id": "namespace", "type": "promptString", "description": "Namespace"},
+    {"id": "deployment", "type": "promptString", "description": "Deployment name"},
+    {"id": "declared", "type": "promptString", "description": "Path to declared.yaml"}
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pytest *)",
+      "Bash(python -m pytest *)",
+      "Bash(ruff *)",
+      "Bash(d2 *)",
+      "Bash(netdiag *)",
+      "Bash(aws * describe-*)",
+      "Bash(aws * list-*)",
+      "Bash(aws sts get-caller-identity *)",
+      "Bash(kubectl get *)",
+      "Bash(kubectl auth can-i *)",
+      "Bash(kubectl config current-context *)"
+    ],
+    "ask": [
+      "Bash(./scripts/capture_fixtures.sh *)",
+      "Bash(scripts/capture_fixtures.sh *)",
+      "Bash(pip install *)",
+      "Edit(/templates/**)",
+      "Edit(/schema/**)",
+      "Edit(/docs/design.md)",
+      "Edit(/CLAUDE.md)",
+      "Edit(/.claude/**)",
+      "Edit(/tests/fixtures/**)"
+    ],
+    "deny": [
+      "Bash(aws secretsmanager *)",
+      "Bash(aws ssm get-parameter*)",
+      "Bash(kubectl * secret*)",
+      "Bash(kubectl * configmap*)",
+      "Bash(kubectl exec *)",
+      "Bash(kubectl delete *)",
+      "Bash(kubectl apply *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Read(.env)",
+      "Read(**/.env)",
+      "Read(~/.aws/**)",
+      "Read(~/.kube/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard_commands.py"
+          }
+        ]
+      }
+    ]
+  }
+}
